@@ -1,77 +1,102 @@
-# 🐛 ch32v003_debug
+# 🐛 CH32V003 Debug Printf Library
 
-Thư viện hỗ trợ in dữ liệu gỡ lỗi (`printf`) siêu nhẹ trực tiếp qua chân nạp SWIO (PD1) dành cho dòng vi điều khiển **CH32V003**. Viết dưới dạng wrapper tối ưu trên nền framework **ch32v003fun**, giúp khắc phục hoàn toàn lỗi báo thiếu hàm trong VSCode/IntelliSense mà không cần include `<stdio.h>` gây phình bộ nhớ Flash.
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![PlatformIO](https://img.shields.io/badge/PlatformIO-Supported-orange.svg)
+![Framework](https://img.shields.io/badge/Framework-ch32v003fun-green.svg)
+![MCU](https://img.shields.io/badge/MCU-CH32V003-red.svg)
+
+Thư viện hỗ trợ in dữ liệu gỡ lỗi (`printf`) siêu nhẹ qua chân nạp **SWIO (PD1)** cho dòng vi điều khiển **CH32V003** trên nền framework `ch32v003fun`. Thư viện xuất dữ liệu trực tiếp lên máy tính thông qua mạch nạp WCH-LinkE mà **không tốn thêm chân UART** phần cứng.
 
 ---
 
 ## 🚀 Tính năng nổi bật
 
-- **Siêu nhẹ & Tối ưu Flash:** Khai báo prototype `printf` siêu nhẹ của `ch32v003fun`, tránh kéo theo thư viện C tiêu chuẩn (`stdio.h`).
-- **Không cần dây UART phụ:** Truyền dữ liệu debug trực tiếp qua chân SWIO (PD1) dùng chung với mạch nạp WCH-LinkE.
-- **Tương thích IDE tốt:** Xóa bỏ hoàn toàn gạch đỏ báo lỗi hàm `printf()` trên VSCode / PlatformIO.
-- **Định dạng cơ bản:** Hỗ trợ đầy đủ các tả định dạng thông dụng: `%d`, `%x`, `%c`, `%s`.
+- **Tối ưu dung lượng Flash:** Không cần include thư viện chuẩn `<stdio.h>`, tiết kiệm tối đa dung lượng bộ nhớ Flash cho vi điều khiển.
+- **Không tốn chân UART:** Tận dụng ngay chân Single Wire (SWIO / PD1) dùng để nạp code để truyền log SDI ngược lên máy tính.
+- **Hỗ trợ định dạng cơ bản:** Hỗ trợ in chuỗi định dạng qua các đặc tả `%d`, `%x`, `%c`, `%s` (không hỗ trợ `%f` để tránh phình to bộ nhớ).
+- **Tương thích toàn bộ gói vỏ:** Tự động tương thích với các dòng CH32V003J4M6 (SOP8), CH32V003A4M6 (SOP16) và CH32V003F4P6 (TSSOP20).
 
 ---
 
-## 📑 Cấu trúc hàm (API Reference)
+## 📦 Cài đặt
 
-### **`int printf(const char* format, ...)`**
+Tích hợp thư viện vào dự án PlatformIO bằng cách thêm URL Git vào mục `lib_deps` trong file `platformio.ini`:
 
-Hàm xuất dữ liệu định dạng ra cổng debug SWIO.
-
-| Tham số  | Kiểu dữ liệu  | Mô tả                                                    |
-| -------- | ------------- | -------------------------------------------------------- |
-| `format` | `const char*` | Chuỗi định dạng dữ liệu (Hỗ trợ `%d`, `%x`, `%c`, `%s`). |
-| `...`    | `va_list`     | Danh sách các biến tương ứng với chuỗi định dạng.        |
-
-- **Giá trị trả về:** Số lượng ký tự đã xuất ra thành công (`int`).
-- **Lưu ý:** Không hỗ trợ in số thực (`%f`) để tối ưu hóa triệt để dung lượng bộ nhớ.
-
----
-
-## ⚙️ Cấu hình & Phụ thuộc (`funconfig.h`)
-
-Để tính năng in debug qua chân nạp hoạt động, bạn cần đảm bảo cờ macro sau được bật trong file `include/funconfig.h` của dự án:
-
-```c
-// Bật tính năng in debug printf qua giao tiếp 1-wire SWIO
-#define FUNCONF_USE_DEBUGPRINTF 1
+```ini
+lib_deps =
+    https://github.com/voc-vach-iot-ch32v003/ch32v003_debug.git
 
 ```
 
-_(Nếu đặt cờ này bằng `0`, các lệnh `printf` sẽ tự động bị loại bỏ để tiết kiệm dung lượng khi build bản thương mại)._
+---
+
+## ⚙️ Cấu hình môi trường (`funconfig.h`)
+
+Để tính năng Debug Printf và hàm `delayMs()` hoạt động chính xác, tệp `funconfig.h` trong thư mục `include/` của dự án phải bật 2 cờ cấu hình bắt buộc sau:
+
+```c
+#ifndef FUNCONFIG_H
+#define FUNCONFIG_H
+
+/**
+ * @brief Cho phép SysTick sử dụng trực tiếp tần số của lõi HCLK (48MHz)
+ *        giúp hàm delayMs() đạt độ chính xác cao.
+ */
+#define FUNCONF_SYSTICK_USE_HCLK 1
+
+/**
+ * @brief Kích hoạt tính năng in dữ liệu gỡ lỗi (Debug Printf) qua SWIO.
+ */
+#define FUNCONF_USE_DEBUGPRINTF  1
+
+#endif // FUNCONFIG_H
+
+```
 
 ---
 
-## 📝 Code mẫu sử dụng
+## 📝 Quick Start
+
+Dưới đây là đoạn code mẫu nhanh minh họa cách dùng `printf()` để in log ra màn hình Serial Monitor qua chân SWIO:
 
 ```c
 #include "ch32fun.h"
-#include <ch32v003_debug.h>
-#include <ch32v003_delay.h>
+#include "ch32v003_delay.h"
+#include "ch32v003_debug.h"
 
-void setup() {
-    int counter = 100;
-    // In chuỗi và giá trị biến ra Terminal
-    printf("Vọc Vạch IoT: Debug System Ready!\n");
-    printf("Gia tri khoi tao: %d (0x%x)\n", counter, counter);
-}
-
-void loop() {
-    static int count = 0;
-    printf("Loop count: %d\n", count++);
-    delayMs(1000);
-}
-
-int main() {
+int main(void)
+{
     SystemInit();
-    delayMs(1000); // Khoảng chờ an toàn tránh brick chip
-    setup();
-    while (1) {
-        loop();
+    delayMs(1000); // Khoảng chờ an toàn tránh kẹt chip khi nạp
+
+    printf("CH32V003 Debug Printf Initialized!\r\n");
+
+    uint32_t count = 0;
+    while (1)
+    {
+        printf("Count: %ld | Hex: 0x%lx\r\n", count, count);
+        count++;
+        delayMs(1000);
     }
 }
 
 ```
 
 ---
+
+## 📑 Tra cứu API (API Reference)
+
+### Cụm hàm gỡ lỗi (Debug Log)
+
+| Hàm xử lý                         | Tham số                                                                                             | Giá trị trả về                          | Mô tả                                                                                      |
+| --------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `printf(const char* format, ...)` | `format`: Chuỗi định dạng dữ liệu.<br> `...`: Danh sách tham số tương ứng (`%d`, `%x`, `%c`, `%s`). | `int`: Số lượng ký tự đã in thành công. | In chuỗi dữ liệu đã được định dạng qua chân SWIO (PD1) lên máy tính qua mạch nạp WCH-Link. |
+
+> **⚠️ Lưu ý:** Để tránh phình to bộ nhớ Flash, thư viện **không hỗ trợ** in số thực `%f`. Hãy đổi số thực sang số nguyên trước khi in (ví dụ: nhân với 100 hoặc 1000).
+
+---
+
+## 📄 Giấy phép (License) & Tác giả
+
+- **Tác giả:** [Vọc Vạch IoT](https://github.com/voc-vach-iot)
+- **Giấy phép:** Phát hành theo giấy phép [MIT License](LICENSE).
